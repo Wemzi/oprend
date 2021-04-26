@@ -1,1 +1,23 @@
-Lukács Dávid,321312,4532423,nem
+Lukács Dávid,321312,4532423,nem,OLTVA
+Lukácsné Anna,2133,0620328323,nem,OLTVA
+Krausz Piroska,1923,063033244410,igen,OLTVA
+Lukács Szabolcs,1232,06204320803,igen,OLTVA
+Kelemen Anna,1934,0640532524,igen
+Tuboly Péter,1232,434324321,nem,OLTVA
+Teréz Mihály,1934,0640532524,igen
+Kelemen Anna,1934,0640532524,igen
+Kelemen Anna,1934,0640532524,igen
+Kelemen Anna,1934,0640532524,igen
+Teréz Mihály,1934,0640532524,igen
+Kelemen Anna,1934,0640532524,igen
+Kelemen Anna,1934,0640532524,igen
+Kelemen Anna,1934,0640532524,igen
+Teréz Mihály,1934,0640532524,igen
+Kelemen Anna,1934,0640532524,igen
+Kelemen Anna,1934,0640532524,igen
+Kelemen Anna,1934,0640532524,igen
+Teréz Mihály,1934,0640532524,igen
+Kelemen Anna,1934,0640532524,igen
+Kelemen Anna,1934,0640532524,igen
+Kelemen Anna,1934,0640532524,igen
+

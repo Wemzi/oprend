@@ -1,10 +1,11 @@
 #include<stdio.h>
 #include<stdlib.h>
 #include<unistd.h>
+#include<signal.h>
 #include<sys/types.h>
 #include<string.h>
 #include<sys/wait.h>
-#include <time.h>
+#include<time.h>
 
 
 void save()
@@ -65,9 +66,9 @@ void delete(char* deletable)
             fputs(old,outputfile);
         }
         while(ptr2!=NULL)
-            {                
-                ptr2 = strtok(NULL,delim);
-            }
+        {                
+            ptr2 = strtok(NULL,delim);
+        }
     }
     fclose(datainfile);
     fclose(outputfile);
@@ -148,62 +149,60 @@ void modify(char* modifyable)
     rename("dataout.txt","data.txt");
 }
 
-int isvaccinated(char* haveugotvaccine)
+int areulucky()
 {
-    FILE* datainfile=fopen("data.txt","r+");
-    FILE* outputfile=fopen("dataout.txt","w");
+    srand(time(NULL));  
+    int random = rand() % 101;
+    printf("%d   ",random);
+    srand(time(NULL));
+    if(random<90)return 1;
+    else return 0;
+
+    return -1;
+}
+
+char** filloltobuszok()
+{
+    char** names = calloc(10,sizeof(char*));
+    for(int idx = 0; idx<10; idx++)
+    {
+        names[idx] = calloc(256,sizeof(char));
+    }
+    FILE* datainfile=fopen("data.txt","r");  
     int megvan = 0;
     if(!datainfile)
     {
         perror("File opening failed!");
-        return -1;
+        return NULL;
     }
 	char delim[] = ",";
-
     char lines[256][256];
     int idx=0;
-    while(fgets(lines[idx],sizeof lines[idx],datainfile)!=NULL)
+    int bevan = 0;
+    char oltva[7] = "OLTVA\n";
+    int jdx=0;
+    while(fgets(lines[idx],sizeof lines[idx],datainfile)!=NULL && jdx<9)
     {
-        char old[264];
-        strcpy(old,lines[idx]);
+        bevan = 0;  
         char* ptr2 = strtok(lines[idx],delim);
-        if(!strcmp(ptr2,haveugotvaccine)==0)
+        char name[64];
+        strcpy(name,ptr2);
+        for(int tmp=0; tmp<4 && ptr2!=NULL; tmp++)
         {
-        fputs(old,outputfile);
-        }
-        else
-        {
-            megvan = 1;
-            fputs(old,outputfile);
-        }    
-        while(ptr2!=NULL)
-        {                
             ptr2 = strtok(NULL,delim);
         }
-        
-    }
-    if(megvan ==0)
-    {
-        printf("nem talaltuk meg ezt a szemelyt az adatbazisban. %s", haveugotvaccine);
+        if( ptr2 != NULL && strcmp(oltva,ptr2)==0)
+        {
+            bevan = 1;
+        }
+        if(bevan==0 && areulucky())
+        {
+            strcpy(names[jdx++],name);
+            sleep(1);
+        }
     }
     fclose(datainfile);
-    fclose(outputfile);
-    remove("data.txt");
-    rename("dataout.txt","data.txt");
-    return megvan;
-}
-
-int areulucky()
-{
-    srand(time(0));
-    int random = rand() % 101;
-    if(random<90)
-    {
-        return 1;
-    }
-    else return 0;
-
-    return -1;
+    return names;
 }
 
 void getvaccinated(char *igotvaccine)
@@ -224,6 +223,8 @@ void getvaccinated(char *igotvaccine)
     {
         char old[264];
         strcpy(old,lines[idx]);
+        int len = strlen(old);
+        
         char* ptr2 = strtok(lines[idx],delim);
         if(!strcmp(ptr2,igotvaccine)==0)
         {
@@ -232,7 +233,12 @@ void getvaccinated(char *igotvaccine)
         else
         {
             megvan = 1;
-            strcat(old,",OLTVA");
+            //remove newline and replace with terminate symbol
+            if(old[len-1]=='\n')
+            {
+                old[len-1]='\0';
+            }
+            strcat(old,",OLTVA\n");
             fputs(old,outputfile);
         }    
         while(ptr2!=NULL)
@@ -266,53 +272,137 @@ void printall()
     }
 }
 
+void oltobuszgo(char** names,int pipe[2])
+{
+    char* out = calloc(5*65,sizeof(char*));
+    int jdx=0;
+    for(int idx=0; names[idx]!=NULL; idx++)
+    {
+        printf("%s be lett oltva\n ", names[idx]);
+        if(jdx==0)
+        {
+            strcat(out,names[idx]);
+            strcat(out,",");
+        }
+        else
+        {
+            strcat(out,",");
+            strcat(out,names[idx]);
+            strcat(out,","); 
+        }
+    }
+    write(pipe[1],out,sizeof(out));
+}
+
+int getbussize(char **names)
+{
+    int idx=0;
+    while(strlen(names[idx])>2)
+    {
+        idx++;
+    }
+    return idx;
+}
+
+void sig_handler(int signum)
+{
+    printf("Harcra fel!\n");
+}
+
 void indulamandula()
 {
-    pid_t oltobusz1;
-    pid_t oltobusz2;
-    int fd1[2];
-    int fd2[2];
-
-
-    oltobusz1 = fork();
-    oltobusz2 = fork();
-    if(pipe(fd1)==-1)
-    {
-        perror("pipe1 failed");
-    }
-    if(pipe(fd2)==-1)
-    {
-        perror("pipe2 failed");
-    }
-
-    if(oltobusz1<0)
-    {
-        perror("fork failed");
-    }
-    if(oltobusz1>0)
-    {
-        close(fd2[1]);
-        wait(NULL);
-        printf("%s","en vagyok a szulo");
-        char message[64];
-        close(fd2[1]);
-        read(fd2[0],message,64);
-        printf("%s",message);
-        close(fd2[1]);
-    }
-    else if(oltobusz1==0)
-    {
-        close(fd2[0]);
-        char message[64] = "szevasz en vagyok a joska";
-        printf("%s","en vagyok a gyerek");
-        write(fd2[1], message, strlen(message));
-        close(fd2[1]);
-
-    }
+    int     oltobusz[2], nbytes, oltobusz2[2];
+    pid_t   childpid = 50;
+    pid_t   childpid2 = 50;
+    char    string[] = "Kutyaszar!\n";
+    char    readbuffer[80];
+    printf("%s\n",string);
+    char** names = filloltobuszok();
+    int bussize = getbussize(names);
+    //printf("a busz merete: %d",bussize);
     
-
-
-
+    pipe(oltobusz);
+    pipe(oltobusz2);
+    if(childpid2 > 0 && childpid >0 )
+    {
+        //printf("forkolok");
+        childpid = fork();
+        if(childpid == -1)
+        {
+            perror("fork");
+            exit(1);
+        }
+    }
+    if(childpid2 > 0 && childpid >0 )
+    {
+        //printf("forkolok");
+        childpid2 = fork();
+        if(childpid2 == -1)
+        {
+            perror("fork2");
+            exit(1);
+        }
+    }
+    printf("%d  ",childpid);
+    printf("%d a buszok merete pedig: %d \n",childpid2, bussize);
+    if(childpid>0 && childpid2 > 0 )
+    {
+        
+            struct sigaction sigact;
+            sigact.sa_handler=sig_handler;
+            sigemptyset(&sigact.sa_mask); 
+            sigact.sa_flags=0; 
+            sigaction(SIGUSR2,&sigact,NULL);
+            sigaction(SIGUSR1,&sigact,NULL);
+            wait(NULL);
+            close(oltobusz[1]);
+            close(oltobusz2[1]);
+            nbytes = read(oltobusz[0], readbuffer, sizeof(readbuffer));
+            printf("Read string: %s", readbuffer);
+            nbytes = read(oltobusz2[0], readbuffer, sizeof(readbuffer));
+            printf("Read string: %s", readbuffer);
+    }
+    if(childpid == 0)
+    {
+        printf("gyerek vagyok\n");
+        if(bussize>4)
+        {
+            printf("Harcra fel!\n");
+            //raise(SIGUSR1)
+            char** oltandok = calloc (5,sizeof(char*));
+            for(int idx=0; idx<5; idx++)
+            {
+                oltandok[idx] = calloc(64,sizeof(char));
+            }
+            for(int idx=0; idx<5; idx++)
+            {
+                strcpy(oltandok[idx],names[idx]);
+            }
+            
+            close(oltobusz[0]);
+            oltobuszgo(oltandok,oltobusz);
+            
+        }
+        exit(0);
+        
+    }
+    if(childpid2 == 0 && bussize > 9)
+    {
+        //raise(SIGUSR2);
+        char** oltandok = calloc (5,sizeof(char*));
+        for(int idx=0; idx<5; idx++)
+        {
+            oltandok[idx] = calloc(64,sizeof(char));
+        }
+        for(int idx=5; idx<10 && names[idx]; idx++)
+        {
+            strcpy(oltandok[idx],names[idx]);
+        }
+        int bussize = getbussize(oltandok);
+        close(oltobusz2[0]);
+        oltobuszgo(oltandok,oltobusz2);
+        exit(0);
+    }
 }
 
 int main(int argc, char** argv)
@@ -350,9 +440,9 @@ int main(int argc, char** argv)
     }
     return 1;*/
 
-
-
     indulamandula();
+    
 
+    return 0;
 
 }
