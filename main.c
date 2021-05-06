@@ -151,20 +151,18 @@ void modify(char* modifyable)
 
 int areulucky()
 {
-    srand(time(NULL));  
+  
     int random = rand() % 101;
-    printf("%d   ",random);
-    srand(time(NULL));
     if(random<90)return 1;
     else return 0;
 
     return -1;
 }
 
-char** filloltobuszok()
+char** filloltobuszok(int* bussize)
 {
     char** names = calloc(10,sizeof(char*));
-    for(int idx = 0; idx<10; idx++)
+    for(int idx = 0; idx<10; idx++) 
     {
         names[idx] = calloc(256,sizeof(char));
     }
@@ -179,33 +177,40 @@ char** filloltobuszok()
     char lines[256][256];
     int idx=0;
     int bevan = 0;
-    char oltva[7] = "OLTVA\n";
+    char oltva[16] = "OLTVA\n";
     int jdx=0;
-    while(fgets(lines[idx],sizeof lines[idx],datainfile)!=NULL && jdx<9)
+    while(fgets(lines[idx],sizeof(lines[idx]),datainfile)!=NULL && jdx<10)
     {
         bevan = 0;  
-        char* ptr2 = strtok(lines[idx],delim);
+        char* ptr2 = strtok(lines[idx++],delim);
         char name[64];
         strcpy(name,ptr2);
         for(int tmp=0; tmp<4 && ptr2!=NULL; tmp++)
         {
             ptr2 = strtok(NULL,delim);
         }
-        if( ptr2 != NULL && strcmp(oltva,ptr2)==0)
+        if( ptr2 != NULL && strcmp(oltva,ptr2)<2)
         {
             bevan = 1;
         }
-        if(bevan==0 && areulucky())
+        if(bevan==0)
         {
-            strcpy(names[jdx++],name);
-            sleep(1);
+            //printf("Varjuk a kovetkezo szemelyt az oltobuszra: %s, vajon odaer? \n", name); 
+              //  printf("odaert az oltobuszra!\n");   
+                strcpy(names[jdx++],name);
+                //printf("novelve lettem itt %s",name);
+               // printf("%d\n",jdx++);
+            
         }
     }
+    *bussize = jdx;
+    fflush(NULL);
     fclose(datainfile);
+    //printf("szar\n");
     return names;
 }
 
-void getvaccinated(char *igotvaccine)
+int getvaccinated(char *igotvaccine)
 {
     FILE* datainfile=fopen("data.txt","r+");
     FILE* outputfile=fopen("dataout.txt","w");
@@ -213,7 +218,7 @@ void getvaccinated(char *igotvaccine)
     if(!datainfile)
     {
         perror("File opening failed!");
-        return;
+        return 0;
     }
 	char delim[] = ",";
 
@@ -233,11 +238,7 @@ void getvaccinated(char *igotvaccine)
         else
         {
             megvan = 1;
-            //remove newline and replace with terminate symbol
-            if(old[len-1]=='\n')
-            {
-                old[len-1]='\0';
-            }
+            old[len-1]='\0';
             strcat(old,",OLTVA\n");
             fputs(old,outputfile);
         }    
@@ -247,14 +248,11 @@ void getvaccinated(char *igotvaccine)
         }
         
     }
-    if(megvan ==0)
-    {
-        printf("nem talaltuk meg ezt a szemelyt az adatbazisban. %s", igotvaccine);
-    }
     fclose(datainfile);
     fclose(outputfile);
     remove("data.txt");
     rename("dataout.txt","data.txt");
+    return megvan;
 }
 
 void printall()
@@ -272,37 +270,21 @@ void printall()
     }
 }
 
-void oltobuszgo(char** names,int pipe[2])
+void oltobuszgo(char names[5][64],int pipe[2],char out[5][64])
 {
-    char* out = calloc(5*65,sizeof(char*));
     int jdx=0;
-    for(int idx=0; names[idx]!=NULL; idx++)
+    for(int idx=0;idx<5; idx++)
     {
-        printf("%s be lett oltva\n ", names[idx]);
-        if(jdx==0)
+        if(areulucky())
         {
-            strcat(out,names[idx]);
-            strcat(out,",");
-        }
-        else
-        {
-            strcat(out,",");
-            strcat(out,names[idx]);
-            strcat(out,","); 
+            strcpy(out[jdx++],names[idx]);
         }
     }
-    write(pipe[1],out,sizeof(out));
+    fflush(NULL);
+    int nbytes = write(pipe[1],out,5*64*sizeof(char));
+    //printf("%d beleirva az oltobuszba!",nbytes);
 }
 
-int getbussize(char **names)
-{
-    int idx=0;
-    while(strlen(names[idx])>2)
-    {
-        idx++;
-    }
-    return idx;
-}
 
 void sig_handler(int signum)
 {
@@ -311,107 +293,222 @@ void sig_handler(int signum)
 
 void indulamandula()
 {
-    int     oltobusz[2], nbytes, oltobusz2[2];
-    pid_t   childpid = 50;
-    pid_t   childpid2 = 50;
-    char    string[] = "Kutyaszar!\n";
-    char    readbuffer[80];
-    printf("%s\n",string);
-    char** names = filloltobuszok();
-    int bussize = getbussize(names);
+    srand(time(NULL));
+    signal(SIGUSR1,sig_handler);
+    int     oltobusz[2], nbytes, oltobusz2[2],torzs1[2],torzs2[2];
+    pid_t   childpid;
+    pid_t   childpid2;
+    char    readbuffer[5][64];
+    char    readbuffer2[5][64];
+    char    readbuffer3[5][64];// = calloc(5,sizeof(char*));
+    char    readbuffer4[5][64];
+   /* for(int idx=0; idx<5; idx++)
+    {
+        readbuffer3[idx] = calloc(64,sizeof(char));
+    }
+    ;
+    for(int idx=0; idx<5; idx++)
+    {
+        readbuffer4[idx] = calloc(64,sizeof(char));
+    }
+    */
+
+    int bussize;
+    char** names = filloltobuszok(&bussize);
+    printf("%d regisztraltat talaltam! \n",bussize);
     //printf("a busz merete: %d",bussize);
-    
+    signal(SIGUSR1,sig_handler);
     pipe(oltobusz);
     pipe(oltobusz2);
-    if(childpid2 > 0 && childpid >0 )
+    pipe(torzs1);
+    pipe(torzs2);
+    
+    for(int idx=0; idx<10; idx++)
     {
-        //printf("forkolok");
+        //printf("%s\n",names[idx]);
+    }
+
+    //printf("%d",bussize);
+    if(bussize > 4 )
+    {
+
         childpid = fork();
         if(childpid == -1)
         {
             perror("fork");
             exit(1);
         }
-    }
-    if(childpid2 > 0 && childpid >0 )
-    {
-        //printf("forkolok");
-        childpid2 = fork();
-        if(childpid2 == -1)
-        {
-            perror("fork2");
-            exit(1);
-        }
-    }
-    printf("%d  ",childpid);
-    printf("%d a buszok merete pedig: %d \n",childpid2, bussize);
-    if(childpid>0 && childpid2 > 0 )
-    {
         
-            struct sigaction sigact;
-            sigact.sa_handler=sig_handler;
-            sigemptyset(&sigact.sa_mask); 
-            sigact.sa_flags=0; 
-            sigaction(SIGUSR2,&sigact,NULL);
-            sigaction(SIGUSR1,&sigact,NULL);
-            wait(NULL);
-            close(oltobusz[1]);
-            close(oltobusz2[1]);
-            nbytes = read(oltobusz[0], readbuffer, sizeof(readbuffer));
-            printf("Read string: %s", readbuffer);
-            nbytes = read(oltobusz2[0], readbuffer, sizeof(readbuffer));
-            printf("Read string: %s", readbuffer);
-    }
-    if(childpid == 0)
-    {
-        printf("gyerek vagyok\n");
-        if(bussize>4)
-        {
-            printf("Harcra fel!\n");
-            //raise(SIGUSR1)
-            char** oltandok = calloc (5,sizeof(char*));
-            for(int idx=0; idx<5; idx++)
+        if(childpid == 0) { // gyerek
+            //printf("gyerek vagyok\n");
+
+            if(bussize>4)
             {
-                oltandok[idx] = calloc(64,sizeof(char));
+                kill(getppid(),SIGUSR1);
+                close(torzs2[0]);
+                close(torzs2[1]);
+                close(torzs1[1]);
+                int nbytes = read(torzs1[0],readbuffer3,5*64*sizeof(char));
+                //printf("%d kiolvasva torzs1bol!\n",nbytes);
+                char out[5][64];
+                for(int idx=0;idx<5;idx++)
+                {
+                    //printf("%s xd1bol \n",readbuffer3[idx]);
+                }
+                close(oltobusz[0]);
+                //printf("oltobusz indul!");
+                oltobuszgo(readbuffer3,oltobusz,out);
+               // printf("%d",bussize);
+                //printf("cso\n");
+                exit(0);
             }
-            for(int idx=0; idx<5; idx++)
+
+        } else {
+            if(bussize>9) 
             {
-                strcpy(oltandok[idx],names[idx]);
+
+                childpid2 = fork();
+                
+                if(childpid2==0) // gyerek2
+                {
+                    kill(getppid(),SIGUSR1);
+                    close(torzs1[0]);
+                    close(torzs1[1]);
+                    close(torzs2[1]);
+                   int nbytes =  read(torzs2[0],readbuffer4,5*64*sizeof(char));
+                  // printf("%d kiolvasva torzs2bol!\n",nbytes);
+                    char out[5][64];
+                    for(int idx=0;idx<5;idx++)
+                    {
+                        //printf("%s xd2bol \n",readbuffer4[idx]);
+                    }
+                    
+                    int jdx=0;
+                    close(oltobusz2[0]);
+                    //printf("oltobusz2 indul!");
+                    oltobuszgo(readbuffer4,oltobusz2,out);
+                    //printf("cso2\n");
+                    exit(0);
+                }
+                else // szülő
+                {
+                    char oltandok[5][64];
+                    char oltandok2[5][64];
+                    int jdx=0;
+                    for(int idx=5; idx<10; idx++)
+                    {
+                        strcpy(oltandok2[jdx++],names[idx]);
+                    }
+                    jdx=0;
+                    for(int idx=0; idx<5; idx++)
+                    {
+                        strcpy(oltandok[jdx++],names[idx]);
+                    }
+
+                        printf("Oltobusz2 a kovetkezo betegeket varja: \n");
+                        for(int idx=0; idx<5;idx++)
+                        {
+                            printf("%s ", oltandok2[idx]);
+                        }
+                        printf("\n");
+                        printf("Oltobusz1 a kovetkezo betegeket varja: \n");
+                        for(int idx=0; idx<5;idx++)
+                        {
+                            printf("%s ", oltandok[idx]);
+                        }
+                    
+                    //printf("hali\n");
+                    close(torzs1[0]);
+                    close(torzs2[0]);
+                    fflush(NULL);
+                    int nbytes = 0; write(torzs1[1],oltandok,5*64);
+                    close(torzs1[1]);
+                    fflush(NULL);
+                    //printf("%d byte beleirva szulo altal torzs1be!\n ",nbytes);
+                    nbytes =  write(torzs2[1],oltandok2,5*64);
+                    //printf("%d byte beleirva szulo altal torzs2be!\n ",nbytes);
+                    close(torzs2[1]);
+                    fflush(NULL); 
+                    sleep(1);
+                    close(oltobusz[1]);
+                    close(oltobusz2[1]);
+                    nbytes = read(oltobusz[0], readbuffer, sizeof(readbuffer));
+                    //printf("Read string oltobuszbol:%d  \n",nbytes);
+                    nbytes = read(oltobusz2[0], readbuffer2, sizeof(readbuffer));
+                    //printf("Read string oltobusz2bol: %d  \n",nbytes);
+                    close(oltobusz[1]);
+                    close(oltobusz2[1]);
+                    char beoltottak[10][66];
+                    char* delim =",";
+                    printf("\n -------------------------------OSSZEFOGLALO----------------------------- \n");
+                    for(int idx=0;idx<5;idx++)
+                    {   
+                        if(!strcmp("",readbuffer[idx])==0)
+                        {
+                            if(getvaccinated(readbuffer[idx])==1)
+                            {
+                                printf("a kovetkezo szemely beoltasra,naplozasra kerult: %s \n",readbuffer[idx]);
+                            }
+                        }
+                        if(!strcmp("",readbuffer2[idx])==0)
+                        {
+                            if(getvaccinated(readbuffer2[idx])==1)
+                            {
+                                printf("a kovetkezo szemely beoltasra,naplozasra kerult: %s \n",readbuffer2[idx]);
+                            }
+                        }
+
+                    }
+                }
+            } else { // ha csak 1 oltobusz indul, szülő
+                    char oltandok[5][64];
+                    int jdx=0;
+                    for(int idx=0; idx<5; idx++)
+                    {
+                        strcpy(oltandok[jdx++],names[idx]);
+                    }
+                        printf("\n");
+                        printf("Oltobusz1 a kovetkezo betegeket varja: \n");
+                        for(int idx=0; idx<5;idx++)
+                        {
+                            printf("%s ", oltandok[idx]);
+                        } 
+                    close(torzs1[0]);
+                    fflush(NULL);
+                    int nbytes = 0; write(torzs1[1],oltandok,5*64);
+                    close(torzs1[1]);
+                    fflush(NULL);
+                    sleep(1);
+                    close(oltobusz[1]);
+                    close(oltobusz2[1]);
+                    nbytes = read(oltobusz[0], readbuffer, sizeof(readbuffer));
+                    //printf("Read string oltobuszbol:%d  \n",nbytes);
+                    close(oltobusz[1]);
+                    close(oltobusz2[1]);
+                    char beoltottak[10][66];
+                    char* delim =",";
+
+                    printf("\n -------------------------------OSSZEFOGLALO----------------------------- \n");
+                    for(int idx=0;idx<5;idx++)
+                    {   
+                        if(!strcmp("",readbuffer[idx])==0)
+                        {
+                        getvaccinated(readbuffer[idx]);
+                        printf("a kovetkezo szemely beoltasra,naplozasra kerult: %s \n",readbuffer[idx]);
+                        }
+                    }
             }
-            
-            close(oltobusz[0]);
-            oltobuszgo(oltandok,oltobusz);
-            
         }
-        exit(0);
-        
-    }
-    if(childpid2 == 0 && bussize > 9)
-    {
-        //raise(SIGUSR2);
-        char** oltandok = calloc (5,sizeof(char*));
-        for(int idx=0; idx<5; idx++)
-        {
-            oltandok[idx] = calloc(64,sizeof(char));
-        }
-        for(int idx=5; idx<10 && names[idx]; idx++)
-        {
-            strcpy(oltandok[idx],names[idx]);
-        }
-        int bussize = getbussize(oltandok);
-        close(oltobusz2[0]);
-        oltobuszgo(oltandok,oltobusz2);
-        exit(0);
     }
 }
 
 int main(int argc, char** argv)
 {
-    /*printf("Udvozlom a vakcina regisztracios C programban! \n ");
+    printf("Udvozlom a vakcina regisztracios C programban! \n ");
     while(1)
     {
         int choice = 0;
-        printf("\nMit szeretne tenni? irja be a megfelelo szamot.\n 1. -> Uj szemely felvetele \n 2. -> Meglevo szemely modositasa \n 3. -> Meglevo szemely torlese. \n 4. -> Listazas. \n 5. -> Kilepes \n");
+        printf("\nMit szeretne tenni? irja be a megfelelo szamot.\n 1. -> Uj szemely felvetele \n 2. -> Meglevo szemely modositasa \n 3. -> Meglevo szemely torlese. \n 4. -> Listazas. \n 5. -> Uj nap kel fel. \n 6. -> Kilepes. \n");
         scanf("%d",&choice);
         char vnev[128];
         char knev[64];
@@ -434,13 +531,12 @@ int main(int argc, char** argv)
                     delete(teljesnev);
                     break;
             case 4: printall(); break;
-            case 5: return 0;
-            default: printf("nem ertelmezett kod, kerem a megadott szamok kozul valasszon\n");                    
+            case 5: indulamandula(); sleep(5); break;
+            case 6: return 0;
+            default: printf("nem ertelmezett kod, kerem a megadott szamok kozul valasszon\n"); fflush(NULL); break;              
         }
     }
-    return 1;*/
-
-    indulamandula();
+    return 1;
     
 
     return 0;
